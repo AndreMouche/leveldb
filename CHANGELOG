@@ -1,0 +1,50 @@
+2013-08-31 18:00:00:
+  Change the logic for method SetLogVisible:
+  We put those logItems which match the following conditions into memtable:
+    1. unsaved in the memtable
+    2. the sequence number is less or equal to the given sequence Number
+ 
+2013-08-30 15:00:00:
+  Rename PutToLog to WriteToLog
+
+2013-08-30:
+   Change the recover logic in Open:
+   We won't recover from the logfile to memtable.
+   Note:It seems will lost data when we exit do not with delete db.
+   The lost  is the datas in memtable
+   
+2013-08-29:
+         
+   add new interface:
+   /*
+   Append the specified updates to the log                        
+   Returns SequenceNumber on success, 0 on failure                            
+   Note:the sequenceNumber will always be positive                            
+   Note:consider setting options.sync = true  
+   */             
+   Status PutToLog(const WriteOptions& options,                         
+                            WriteBatch* updates,uint64_t &sequenceNumber)
+  /*
+   if SLog contains an entry for sequenceNumber store the                     
+   corresponding data to the database with method Put                         
+   Return OK on success,non-OK on failure 
+  */                                    
+  Status SetLogVisible(const uint64_t sequenceNumber)
+ 
+  PS:Here we should use PutToLog,SetLogVisible Step by Step.If we setLogVisible
+  with bigger sequenceNumber first,all those smaller SequenceNumber's logItem 
+  which is not put into memtable will lost.You can consider the following
+  is an automic operation:
+  
+  //Do someting..
+  {
+    status = db->PutToLog(options,updates,sequenceNumber);
+    if(status.ok()) {
+       status = db->SetLogVisible(sequenceNumber);
+    }
+  }
+  //Do something
+    
+       
+2013-08-28:init
+          download from https://leveldb.googlecode.com/files/leveldb-1.13.0.tar.gz
