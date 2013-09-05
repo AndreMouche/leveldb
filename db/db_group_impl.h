@@ -21,6 +21,8 @@ struct ReadOptions;
 struct WriteOptions;
 class WriteBatch;
 
+static const uint64_t kCommitLogSize = 4 << 20;
+
 class DB_GROUP_Impl:public DB_GROUP {
  public:
   //Open the database group with the specified "name"

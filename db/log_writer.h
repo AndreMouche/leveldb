@@ -27,6 +27,7 @@ class Writer {
   Status AddRecord(const Slice& slice);
   Status AddRecord2(const Slice& slice,uint64_t &offset);
   Status GetFileName(std::string &fname);
+  uint64_t GetFileSize();
  private:
   WritableFile* dest_;
   int block_offset_;       // Current offset in block

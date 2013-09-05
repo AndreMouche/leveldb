@@ -1,3 +1,8 @@
+2013-09-05 17:00:00:
+     Add DB_GROUP..
+     We can use db_group to create multipart dbs while share the same commit
+     log.
+
 2013-08-31 18:00:00:
   Change the logic for method SetLogVisible:
   We put those logItems which match the following conditions into memtable:

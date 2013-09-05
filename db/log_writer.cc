@@ -29,6 +29,9 @@ Status Writer::GetFileName(std::string &fname) {
    return Status::OK();
 }
 
+uint64_t Writer::GetFileSize() {
+  return dest_->GetCurFileOffSet();
+}
 //Author:jingdong
 Status Writer::AddRecord2(const Slice& slice,uint64_t &cur_offset) {
   const char* ptr = slice.data();

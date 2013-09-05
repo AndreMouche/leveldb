@@ -34,15 +34,11 @@ Options SanitizeOptions2(const std::string& dbname,
                         const InternalFilterPolicy* ipolicy,
                         const Options& src) {
   Options result = src;
-  result.comparator = icmp;
-  result.filter_policy = (src.filter_policy != NULL) ? ipolicy : NULL;
-  ClipToRange2(&result.max_open_files,    64 + kNumNonTableCacheFiles, 50000);
   ClipToRange2(&result.write_buffer_size, 64<<10,                      1<<30);
   ClipToRange2(&result.block_size,        1<<10,                       4<<20);
   if (result.info_log == NULL) {
     // Open a log file in the same directory as the db
-    src.env->CreateDir(dbname);  // In case it does not exist
-    src.env->RenameFile(InfoLogFileName(dbname), OldInfoLogFileName(dbname));
+  //  src.env->CreateDir(dbname);  // In case it does not exist
     Status s = src.env->NewLogger(InfoLogFileName(dbname), &result.info_log);
     if (!s.ok()) {
       // No place suitable for logging
@@ -281,7 +277,23 @@ Status DB_GROUP_Impl::Write(const WriteOptions &options,
 //Check whether log file is full
 Status DB_GROUP_Impl::MakeRoomForWrite(bool force){
   Status status = Status::OK();
-  //TODO
+  if(log_->GetFileSize() >= kCommitLogSize) {
+      uint64_t new_logfile_number = logfile_number_ + 1;
+      WritableFile* lfile = NULL;
+      status = env_->NewWritableFile(LogFileName(group_name_,new_logfile_number),
+		                    &lfile);
+      if(!status.ok()){
+           //TODO
+	   return status;
+      }
+
+      delete log_;
+      delete logfile_;
+      logfile_ = lfile;
+      logfile_number_ = new_logfile_number;
+      log_ = new log::Writer(lfile);
+    
+  }
   return status;
 }
 
