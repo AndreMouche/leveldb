@@ -130,7 +130,6 @@ DBImpl::DBImpl(const Options& raw_options, const std::string& dbname)
       imm_(NULL),
       logfile_(NULL),
       logfile_number_(0),
-      log_(NULL),
       seed_(0),
       tmp_batch_(new WriteBatch),
       bg_compaction_scheduled_(false),
@@ -167,7 +166,6 @@ DBImpl::~DBImpl() {
   if (mem_ != NULL) mem_->Unref();
   if (imm_ != NULL) imm_->Unref();
   delete tmp_batch_;
-  delete log_;
   delete logfile_;
   delete table_cache_;
 
@@ -586,8 +584,9 @@ void DBImpl::TEST_CompactRange(int level, const Slice* begin,const Slice* end) {
   }
 }
 
+
 Status DBImpl::TEST_CompactMemTable() {
-  // NULL batch means just wait for earlier writes to be done
+/*  // NULL batch means just wait for earlier writes to be done
   Status s = Write(WriteOptions(), NULL);
   if (s.ok()) {
     // Wait until the compaction completes
@@ -599,7 +598,8 @@ Status DBImpl::TEST_CompactMemTable() {
       s = bg_error_;
     }
   }
-  return s;
+  return s;*/
+  return Status::OK();
 }
 
 void DBImpl::MaybeScheduleCompaction() {
@@ -1151,94 +1151,6 @@ void DBImpl::ReleaseSnapshot(const Snapshot* s) {
   snapshots_.Delete(reinterpret_cast<const SnapshotImpl*>(s));
 }
 
-// Convenience methods
-Status DBImpl::Put(const WriteOptions& o, const Slice& key, const Slice& val) {
-  return DB::Put(o, key, val);
-}
-
-Status DBImpl::Delete(const WriteOptions& options, const Slice& key) {
-  return DB::Delete(options, key);
-}
-
-
-//Author:jingdong    
-Status DBImpl::WriteToLog(const WriteOptions& options,
-		          WriteBatch* my_batch,uint64_t &cur_seq) {
-   Writer w(&mutex_);
-   w.batch = my_batch;
-   w.sync = options.sync;
-   w.done = false;
-   MutexLock l(&mutex_);
-   writers_.push_back(&w);
-   while(!w.done && &w != writers_.front()) {
-        w.cv.Wait();
-   }
-
-   if(w.done) {
-     return w.status;
-     //TODO????
-   }
-
-   Status status = MakeRoomForWrite(my_batch == NULL);
-   //Status status = Status::OK();
-   uint64_t last_sequence = versions_->LastSequence() >
-	                    log_item_group_->GetLastSequenceNumber()?
-			    versions_->LastSequence():
-			    log_item_group_->GetLastSequenceNumber();
-   
-   Writer* last_writer = &w;
-   if(status.ok() && my_batch != NULL) {
-   //if(my_batch != NULL) {
-     WriteBatch* updates = BuildBatchGroup(&last_writer);
-      cur_seq = last_sequence + 1;
-      WriteBatchInternal::SetSequence(updates,cur_seq);
-      last_sequence += WriteBatchInternal::Count(updates);
-     
-      // Add to log
-      {
-         mutex_.Unlock();
-         uint64_t cur_offset;
-         status = log_->AddRecord2(WriteBatchInternal::Contents(updates),
-		      cur_offset);
-         if(status.ok() && options.sync) {
-            status = logfile_->Sync();
-         }
-         mutex_.Lock();
-         if(status.ok()) {
-            std::string fname;
-	    status = log_->GetFileName(fname); 
-            if(status.ok()) {
-		 LogSequenceItem log_seq_item(cur_seq,fname,cur_offset,dbname_);   
-	         status = log_item_group_->PutSequenceItem(log_seq_item);
-           }
-        }
- //      mutex_.Lock();
-     }  
-
-      if (updates == tmp_batch_) tmp_batch_->Clear(); 
-   }
-
-   while(true) {
-     Writer* ready = writers_.front();
-     writers_.pop_front();
-     if(ready != &w) {
-       ready -> status = status;
-       ready -> done = true;
-       ready->cv.Signal();
-
-     }
-
-     if(ready == last_writer) break;
-   }
- 
-   //Notify new head of write queue
-   if(!writers_.empty()){
-      writers_.front()->cv.Signal();
-   }
-
-   return status;
-}
-
 //Author:jingdong
 Status DBImpl::WriteToMemtable(const WriteOptions& options,
 		               WriteBatch* my_batch){
@@ -1295,174 +1207,6 @@ Status DBImpl::WriteToMemtable(const WriteOptions& options,
   if (!writers_.empty()) {
     writers_.front()->cv.Signal();
   }
-  return status;
-}
-
-//Author:jingdong    
-Status DBImpl::SetLogVisible(const uint64_t seqNum){
-  
-  LogSequenceItem front_item;	 
-  while(log_item_group_->GetFrontItem(&front_item).ok() 
-           && front_item.sequence_number() <= seqNum) {
-	  
-	  SequenceNumber sequenceNumber = front_item.sequence_number();	  
-	  WriteBatch my_batch;
-	  Status status = GetLogBatchBySequenceNumber(sequenceNumber,my_batch);
-	  if(!status.ok()) {
-	      return status;
-	  } 
-	  
-	  status = WriteToMemtable(WriteOptions(),&my_batch);
-	  if(!status.ok()){
-	      return status;
-	  }
-	  log_item_group_->PopEarlierItemBeforeOrEqual(sequenceNumber);
-
-  }
-  return Status::OK();
-}
-
-Status DBImpl::GetLogBatchBySequenceNumber(const uint64_t sequenceNumber,
-		WriteBatch &batch) {
-    
-    LogSequenceItem log_sequence_item;
-    Status status = log_item_group_->GetSequenceItem(sequenceNumber,
-		    &log_sequence_item);
-    if(!status.ok()) {
-       return status;
-    }
-
-  // Open the log file
-   std::string fname = log_sequence_item.filename();
-  
-   struct LogReporter : public log::Reader::Reporter {
-      Env* env;
-      Logger* info_log;
-      const char* fname;
-      Status* status;  // NULL if options_.paranoid_checks==false
-      virtual void Corruption(size_t bytes, const Status& s) {
-        Log(info_log, "%s%s: dropping %d bytes; %s",
-            (this->status == NULL ? "(ignoring error) " : ""),
-             fname, static_cast<int>(bytes), s.ToString().c_str());
-           if (this->status != NULL && this->status->ok()) *this->status = s;
-        }
-   };
-
-   mutex_.AssertHeld();
-
-   
-   SequentialFile* file;
-   status = env_->NewSequentialFile(fname, &file);
-   if (!status.ok()) {
-     return status;
-   } 
-
-   // Create the log reader.
-   LogReporter reporter;
-   reporter.env = env_;
-   reporter.info_log = options_.info_log;
-   reporter.fname = fname.c_str();
-   reporter.status = (options_.paranoid_checks ? &status : NULL);
-   // We intentially make log::Reader do checksumming even if
-   // paranoid_checks==false so that corruptions cause entire commits
-   // to be skipped instead of propagating bad information (like overly
-   // large sequence numbers).
-   log::Reader reader(file, &reporter, true/*checksum*/,
-                     log_sequence_item.offset()/*initial_offset*/);
-
-   // Read all the records and add to a memtable
-   std::string scratch;
-   Slice record;
-   while(reader.ReadRecord(&record, &scratch)) { //acturally do only once here
-      if (record.size() < 12) { 
-        reporter.Corruption(
-          record.size(), Status::Corruption("log record too small"));
-        status =  Status::Corruption("log record too small");
-        break;
-    }
-    WriteBatchInternal::SetContents(&batch, record);
-    //check sequenceNumber
-    SequenceNumber cur_sq = WriteBatchInternal::Sequence(&batch);
-    if(cur_sq != sequenceNumber) {
-       status =  Status::Corruption("Inner Error:sequnceNumber not match");
-    } else {
-       const SequenceNumber last_seq = cur_sq +
-                    WriteBatchInternal::Count(&batch) - 1;
-    
-       if (last_seq <= versions_->LastSequence()) {
-          status = Status::Corruption(
-		      "Illegal SequenceNumber:SeqNumber Expired.");
-       }
-    }
-    break; // do only once
-  }
- 
-  delete file;
-  
-  return status;
-
-}
-
-Status DBImpl::Write(const WriteOptions& options, WriteBatch* my_batch) {
-  Writer w(&mutex_);
-  w.batch = my_batch;
-  w.sync = options.sync;
-  w.done = false;
-
-  MutexLock l(&mutex_);
-  writers_.push_back(&w);
-  while (!w.done && &w != writers_.front()) {
-    w.cv.Wait();
-  }
-  if (w.done) {
-    return w.status;
-  }
-
-  // May temporarily unlock and wait.
-  Status status = MakeRoomForWrite(my_batch == NULL);
-  uint64_t last_sequence = versions_->LastSequence();
-  Writer* last_writer = &w;
-  if (status.ok() && my_batch != NULL) {  // NULL batch is for compactions
-    WriteBatch* updates = BuildBatchGroup(&last_writer);
-    WriteBatchInternal::SetSequence(updates, last_sequence + 1);
-    last_sequence += WriteBatchInternal::Count(updates);
-
-    // Add to log and apply to memtable.  We can release the lock
-    // during this phase since &w is currently responsible for logging
-    // and protects against concurrent loggers and concurrent writes
-    // into mem_.
-    {
-      mutex_.Unlock();
-      status = log_->AddRecord(WriteBatchInternal::Contents(updates));
-      if (status.ok() && options.sync) {
-        status = logfile_->Sync();
-      }
-      if (status.ok()) {
-        status = WriteBatchInternal::InsertInto(updates, mem_);
-      }
-      mutex_.Lock();
-    }
-    if (updates == tmp_batch_) tmp_batch_->Clear();
-
-    versions_->SetLastSequence(last_sequence);
-  }
-
-  while (true) {
-    Writer* ready = writers_.front();
-    writers_.pop_front();
-    if (ready != &w) {
-      ready->status = status;
-      ready->done = true;
-      ready->cv.Signal();
-    }
-    if (ready == last_writer) break;
-  }
-
-  // Notify new head of write queue
-  if (!writers_.empty()) {
-    writers_.front()->cv.Signal();
-  }
-
   return status;
 }
 
@@ -1564,11 +1308,9 @@ Status DBImpl::MakeRoomForWrite(bool force) {
         versions_->ReuseFileNumber(new_log_number);
         break;
       }
-      delete log_;
       delete logfile_;
       logfile_ = lfile;
       logfile_number_ = new_log_number;
-      log_ = new log::Writer(lfile);
       imm_ = mem_;
       has_imm_.Release_Store(imm_);
       mem_ = new MemTable(internal_comparator_);
@@ -1660,20 +1402,6 @@ void DBImpl::GetApproximateSizes(
   }
 }
 
-// Default implementations of convenience methods that subclasses of DB
-// can call if they wish
-Status DB::Put(const WriteOptions& opt, const Slice& key, const Slice& value) {
-  WriteBatch batch;
-  batch.Put(key, value);
-  return Write(opt, &batch);
-}
-
-Status DB::Delete(const WriteOptions& opt, const Slice& key) {
-  WriteBatch batch;
-  batch.Delete(key);
-  return Write(opt, &batch);
-}
-
 DB::~DB() { }
 
 Status DB::Open(const Options& options, const std::string& dbname,
@@ -1685,15 +1413,7 @@ Status DB::Open(const Options& options, const std::string& dbname,
   VersionEdit edit;
   Status s = impl->Recover(&edit); // Handles create_if_missing, error_if_exists
   if (s.ok()) {
-    uint64_t new_log_number = impl->versions_->NewFileNumber();
-    WritableFile* lfile;
-    s = options.env->NewWritableFile(LogFileName(dbname, new_log_number),
-                                     &lfile);
     if (s.ok()) {
-      edit.SetLogNumber(new_log_number);
-      impl->logfile_ = lfile;
-      impl->logfile_number_ = new_log_number;
-      impl->log_ = new log::Writer(lfile);
       s = impl->versions_->LogAndApply(&edit, &impl->mutex_);
     }
     if (s.ok()) {

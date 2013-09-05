@@ -55,40 +55,6 @@ class DB {
   DB() { }
   virtual ~DB();
 
-  // Set the database entry for "key" to "value".  Returns OK on success,
-  // and a non-OK status on error.
-  // Note: consider setting options.sync = true.
-  virtual Status Put(const WriteOptions& options,
-                     const Slice& key,
-                     const Slice& value) = 0;
-
-  // Remove the database entry (if any) for "key".  Returns OK on
-  // success, and a non-OK status on error.  It is not an error if "key"
-  // did not exist in the database.
-  // Note: consider setting options.sync = true.
-  virtual Status Delete(const WriteOptions& options, const Slice& key) = 0;
-
-  // Apply the specified updates to the database.
-  // Returns OK on success, non-OK on failure.
-  // Note: consider setting options.sync = true.
-  virtual Status Write(const WriteOptions& options, WriteBatch* updates) = 0;
-
-  //Append the specified updates to the log
-  //Returns SequenceNumber on success, 0 on failure
-  //Note:the sequenceNumber will always be positive
-  //Note:consider setting options.sync = true
-  //Author:jingdong
-  virtual Status WriteToLog(const WriteOptions& options,
-		  	    WriteBatch* updates,uint64_t &sequenceNumber) = 0;
-  
-
-  //if SLog contains  entries whose sequenceNumber is smaller or equal to the 
-  //given one, store all those 
-  //corresponding data to the database 
-  //Return OK on success,non-OK on failure 
-  //Author:jingdong
-  virtual Status SetLogVisible(const uint64_t sequenceNumber) = 0;
-
   // If the database contains an entry for "key" store the
   // corresponding value in *value and return OK.
   //

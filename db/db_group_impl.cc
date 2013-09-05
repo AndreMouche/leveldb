@@ -261,7 +261,7 @@ Status DB_GROUP_Impl::Get(const ReadOptions& options,
 Status DB_GROUP_Impl::Write(const WriteOptions &options,
 			    const std::string &dbname,
 			    WriteBatch* updates) {
-   DB *db;
+ /*  DB *db;
    Status status = CheckAndGetDB(dbname,&db);
    if(status.ok()) {
        uint64_t sequenceNumber;	   
@@ -271,6 +271,7 @@ Status DB_GROUP_Impl::Write(const WriteOptions &options,
        }
    } 
    return status;
+ */
 }
 
 

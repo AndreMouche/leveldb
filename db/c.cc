@@ -167,41 +167,7 @@ void leveldb_close(leveldb_t* db) {
   delete db;
 }
 
-void leveldb_put(
-    leveldb_t* db,
-    const leveldb_writeoptions_t* options,
-    const char* key, size_t keylen,
-    const char* val, size_t vallen,
-    char** errptr) {
-  SaveError(errptr,
-            db->rep->Put(options->rep, Slice(key, keylen), Slice(val, vallen)));
-}
 
-void leveldb_delete(
-    leveldb_t* db,
-    const leveldb_writeoptions_t* options,
-    const char* key, size_t keylen,
-    char** errptr) {
-  SaveError(errptr, db->rep->Delete(options->rep, Slice(key, keylen)));
-}
-
-
-void leveldb_write(
-    leveldb_t* db,
-    const leveldb_writeoptions_t* options,
-    leveldb_writebatch_t* batch,
-    char** errptr) {
-  SaveError(errptr, db->rep->Write(options->rep, &batch->rep));
-}
-
-uint64_t leveldb_write_to_log(
-   leveldb_t* db,
-   const leveldb_writeoptions_t* options,
-   leveldb_writebatch_t* batch,
-   char** errptr) {
-  uint64_t seq_num;
-  SaveError(errptr,db->rep->WriteToLog(options->rep,&batch->rep,seq_num));
-}
 char* leveldb_get(
     leveldb_t* db,
     const leveldb_readoptions_t* options,

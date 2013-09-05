@@ -29,22 +29,10 @@ class DBImpl : public DB {
   virtual ~DBImpl();
 
   // Implementations of the DB interface
-  virtual Status Put(const WriteOptions&, const Slice& key, const Slice& value);
-  virtual Status Delete(const WriteOptions&, const Slice& key);
-  virtual Status Write(const WriteOptions& options, WriteBatch* updates);
-  
-  //Author:jingdong    
-  virtual Status WriteToLog(const WriteOptions& options,                      
-		            WriteBatch* updates,uint64_t &sequenceNumber);  
-  
   //Author:jingdong
   virtual Status WriteToMemtable(const WriteOptions& options,
 		                 WriteBatch* updates
 				 );
-  //Author:jingdong    
-  virtual Status SetLogVisible(const uint64_t sequenceNumber);
-  virtual Status GetLogBatchBySequenceNumber(const uint64_t sequenceNumber,
-		WriteBatch &my_batch);
   virtual Status Get(const ReadOptions& options,
                      const Slice& key,
                      std::string* value);
@@ -153,7 +141,6 @@ class DBImpl : public DB {
   port::AtomicPointer has_imm_;  // So bg thread can detect non-NULL imm_
   WritableFile* logfile_;
   uint64_t logfile_number_;
-  log::Writer* log_;
   uint32_t seed_;                // For sampling.
 
   // Queue of writers.
