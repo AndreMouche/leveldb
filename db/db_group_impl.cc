@@ -157,6 +157,7 @@ Status DB_GROUP_Impl::WriteToDBJustInLog(const WriteOptions &options,
    if(status.ok()) {
        sequenceNumber = last_sequence + 1;
        WriteBatchInternal::SetSequence(updates,sequenceNumber);
+       WriteBatchInternal::SetDBname(updates,dbname);
        JDebug::JDebugInfo("Insert to log with sequenceNumber",sequenceNumber);
        //add to log
        {
@@ -227,7 +228,9 @@ Status DB_GROUP_Impl::SetLogVisible(const uint64_t seqNum) {
       } 
 
       DB *db;
-      std::string dbname = front_item.dbname();
+      std::string dbname = WriteBatchInternal::GetDBname(&my_batch);
+      JDebug::JDebugInfo("Get DB name from log:" + dbname , sequenceNumber);
+      //std::string dbname = front_item.dbname();
       status = CheckAndGetDB(dbname,&db);
       if(!status.ok()) {
          break;

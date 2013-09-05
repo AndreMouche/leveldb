@@ -24,7 +24,8 @@
 namespace leveldb {
 
 // WriteBatch header has an 8-byte sequence number followed by a 4-byte count.
-static const size_t kHeader = 12;
+// followed by a 128-byte dbname   -- updated by jingdong
+static const size_t kHeader = 12 + 128;
 
 WriteBatch::WriteBatch() {
   Clear();
@@ -85,6 +86,17 @@ int WriteBatchInternal::Count(const WriteBatch* b) {
 
 void WriteBatchInternal::SetCount(WriteBatch* b, int n) {
   EncodeFixed32(&b->rep_[8], n);
+}
+
+//Author:jingdong
+void WriteBatchInternal::SetDBname(WriteBatch* b,std::string dbname) {
+   //TODO
+   b->rep_.insert(12,dbname);
+}
+
+std::string WriteBatchInternal::GetDBname(WriteBatch* b) {
+   std::string dbname = b->rep_.substr(12,128);
+   return dbname;
 }
 
 SequenceNumber WriteBatchInternal::Sequence(const WriteBatch* b) {

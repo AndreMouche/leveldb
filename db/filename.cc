@@ -4,6 +4,7 @@
 
 #include <ctype.h>
 #include <stdio.h>
+#include <time.h>
 #include "db/filename.h"
 #include "db/dbformat.h"
 #include "leveldb/env.h"
@@ -56,7 +57,11 @@ std::string TempFileName(const std::string& dbname, uint64_t number) {
 }
 
 std::string InfoLogFileName(const std::string& dbname) {
-  return dbname + "/LOG";
+   time_t cur_t = time(0);                                                         
+   char tmp[64];                                                               
+   strftime(tmp,sizeof(tmp),"%Y%m%d%H%M%S",localtime(&cur_t));  
+   //return dbname + "/LOG";
+   return dbname + "/info_" + tmp + ".log";
 }
 
 // Return the name of the old info log file for "dbname".

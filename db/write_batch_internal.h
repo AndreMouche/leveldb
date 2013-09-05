@@ -41,6 +41,9 @@ class WriteBatchInternal {
   static Status InsertInto(const WriteBatch* batch, MemTable* memtable);
 
   static void Append(WriteBatch* dst, const WriteBatch* src);
+  //added by jingdong
+  static void SetDBname(WriteBatch*, std::string);
+  static std::string GetDBname(WriteBatch *);
 };
 
 }  // namespace leveldb
