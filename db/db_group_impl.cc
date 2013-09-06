@@ -224,16 +224,17 @@ Status DB_GROUP_Impl::SetLogVisible(const uint64_t seqNum) {
       } 
 
       DB *db;
-      std::string dbname = WriteBatchInternal::GetDBname(&my_batch);
-      JDebug::JDebugInfo("Get DB name from log:" + dbname , sequenceNumber);
-      //std::string dbname = front_item.dbname();
+      //std::string dbname = WriteBatchInternal::GetDBname(&my_batch);
+      //JDebug::JDebugInfo("Get DB name from log:" + dbname , sequenceNumber);
+      std::string dbname = front_item.dbname();
       status = CheckAndGetDB(dbname,&db);
-      if(!status.ok()) {
+      if(!status.ok()) {     
          break;
       }
       JDebug::JDebugInfo("Set Log visible",sequenceNumber);
       status = db -> WriteToMemtable(WriteOptions(),&my_batch);
       if(!status.ok()) {
+	      JDebug::JDebugInfo("failed" + status.ToString(),sequenceNumber);     
          break;
       }
       max_sequence_number_ = sequenceNumber - 1

@@ -50,10 +50,12 @@ Status WriteBatch::Iterate(Handler* handler) const {
   }
 
   input.remove_prefix(kHeader);
+  
   Slice key, value;
   int found = 0;
   while (!input.empty()) {
     found++;
+    JDebug::JDebugInfo("found:",found);
     char tag = input[0];
     input.remove_prefix(1);
     switch (tag) {
@@ -61,6 +63,7 @@ Status WriteBatch::Iterate(Handler* handler) const {
         if (GetLengthPrefixedSlice(&input, &key) &&
             GetLengthPrefixedSlice(&input, &value)) {
           handler->Put(key, value);
+	  JDebug::JDebugInfo("key:" + key.ToString() + " value:"+value.ToString(),found);
         } else {
           return Status::Corruption("bad WriteBatch Put");
         }
@@ -68,6 +71,7 @@ Status WriteBatch::Iterate(Handler* handler) const {
       case kTypeDeletion:
         if (GetLengthPrefixedSlice(&input, &key)) {
           handler->Delete(key);
+	  JDebug::JDebugInfo("Delete key:" + key.ToString(),found);
         } else {
           return Status::Corruption("bad WriteBatch Delete");
         }
@@ -76,6 +80,8 @@ Status WriteBatch::Iterate(Handler* handler) const {
         return Status::Corruption("unknown WriteBatch tag");
     }
   }
+  JDebug::JDebugInfo("foud",found);
+  JDebug::JDebugInfo("count",WriteBatchInternal::Count(this));
   if (found != WriteBatchInternal::Count(this)) {
     return Status::Corruption("WriteBatch has wrong count");
   } else {
@@ -94,7 +100,7 @@ void WriteBatchInternal::SetCount(WriteBatch* b, int n) {
 //Author:jingdong
 void WriteBatchInternal::SetDBname(WriteBatch* b,std::string dbname) {
    //TODO
-   b->rep_.insert(kSequenceNumberSize + kCountSize , dbname);
+   b->rep_.replace(kSequenceNumberSize + kCountSize ,dbname.size(),dbname);
 }
 
 //Author:jingdong

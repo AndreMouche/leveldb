@@ -1191,7 +1191,9 @@ Status DBImpl::WriteToMemtable(const WriteOptions& options,
 
     versions_->SetLastSequence(last_sequence);
   }
-
+  if(status.ok()) {
+     JDebug::JDebugInfo("insert to mem_",sequenceNumber);
+  }
   while (true) {
     Writer* ready = writers_.front();
     writers_.pop_front();
@@ -1299,18 +1301,6 @@ Status DBImpl::MakeRoomForWrite(bool force) {
       bg_cv_.Wait();
     } else {
       // Attempt to switch to a new memtable and trigger compaction of old
-      assert(versions_->PrevLogNumber() == 0);
-      uint64_t new_log_number = versions_->NewFileNumber();
-      WritableFile* lfile = NULL;
-      s = env_->NewWritableFile(LogFileName(dbname_, new_log_number), &lfile);
-      if (!s.ok()) {
-        // Avoid chewing through file number space in a tight loop.
-        versions_->ReuseFileNumber(new_log_number);
-        break;
-      }
-      delete logfile_;
-      logfile_ = lfile;
-      logfile_number_ = new_log_number;
       imm_ = mem_;
       has_imm_.Release_Store(imm_);
       mem_ = new MemTable(internal_comparator_);
